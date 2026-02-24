@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chiang Mai 20 Landmark Smart Map</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --police: #002d5e; --gold: #ffcc00; --red: #ff4b4b; }
+        body { margin: 0; font-family: 'Kanit', sans-serif; background: #f4f4f4; }
+        header { background: var(--police); color: white; padding: 10px 15px; position: sticky; top: 0; z-index: 1001; }
+        .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .search-container input { width: 100%; padding: 10px 15px; border-radius: 25px; border: none; outline: none; box-sizing: border-box; font-family: 'Kanit'; }
+        .lang-switch button { background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 4px 10px; cursor: pointer; border-radius: 15px; font-size: 11px; }
+        .lang-switch button.active { background: var(--gold); color: var(--police); font-weight: bold; border-color: var(--gold); }
+        #map { height: calc(100vh - 110px); width: 100%; z-index: 1; }
+        .nav-btn { display: block; margin-top: 8px; background: #007bff; color: white !important; padding: 8px; text-decoration: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 13px; }
+        .sos-btn { position: fixed; bottom: 25px; left: 20px; background: var(--red); color: white; width: 65px; height: 65px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 1000; font-weight: bold; border: 2px solid white; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="top-row">
+        <div style="font-weight: 600;" id="ui-title">CM 20 Landmarks</div>
+        <div class="lang-switch">
+            <button onclick="changeLang('th')" id="btn-th" class="active">ไทย</button>
+            <button onclick="changeLang('en')" id="btn-en">EN</button>
+            <button onclick="changeLang('cn')" id="btn-cn">中文</button>
+        </div>
+    </div>
+    <div class="search-container"><input type="text" id="search-input" placeholder="ค้นหาจุดท่องเที่ยว..."></div>
+</header>
+
+<div id="map"></div>
+<a href="tel:1155" class="sos-btn"><span id="ui-sos">HELP</span><strong>1155</strong></a>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    let currentLang = 'th';
+    const translations = {
+        th: { title: "20 จุดเช็คอินเชียงใหม่", search: "ค้นหาสถานที่...", nav: "นำทาง", sos: "ช่วยเหลือ" },
+        en: { title: "20 Chiang Mai Landmarks", search: "Search locations...", nav: "Navigate", sos: "HELP" },
+        cn: { title: "清迈20大景点", search: "搜索地点...", nav: "导航", sos: "紧急呼叫" }
+    };
+
+    const locations = [
+        // POLICE
+        { type: "police", lat: 18.7902, lng: 98.9856, name: {th: "สถานีตำรวจท่องเที่ยวเชียงใหม่", en: "Tourist Police Station", cn: "清迈旅游警察局"}, info: {th: "ใกล้ประตูท่าแพ", en: "Near Tha Phae Gate", cn: "靠近塔佩门"} },
+        // CITY CENTER
+        { type: "attraction", lat: 18.8048, lng: 98.9214, name: {th: "วัดพระธาตุดอยสุเทพ", en: "Doi Suthep Temple", cn: "素帖寺"}, info: {th: "วัดคู่บ้านคู่เมือง", en: "Must-visit temple", cn: "清迈必访寺庙"} },
+        { type: "attraction", lat: 18.7876, lng: 98.9815, name: {th: "วัดเจดีย์หลวง", en: "Wat Chedi Luang", cn: "契迪龙寺"}, info: {th: "วัดเก่าแก่ใจกลางเมือง", en: "Ancient temple", cn: "古城区古庙"} },
+        { type: "attraction", lat: 18.7868, lng: 98.9932, name: {th: "ประตูท่าแพ", en: "Tha Phae Gate", cn: "塔佩门"}, info: {th: "จุดถ่ายรูปยอดฮิต", en: "Photo landmark", cn: "打卡地标"} },
+        { type: "attraction", lat: 18.7995, lng: 98.9682, name: {th: "ถนนนิมมานเหมินท์", en: "Nimman Road", cn: "宁曼路"}, info: {th: "ย่านคาเฟ่สุดชิค", en: "Trendy cafe area", cn: "时尚咖啡区"} },
+        { type: "attraction", lat: 18.7889, lng: 98.9835, name: {th: "อนุสาวรีย์สามกษัตริย์", en: "Three Kings Monument", cn: "三王纪念碑"}, info: {th: "ใจกลางเมืองเก่า", en: "City landmark", cn: "城市地标"} },
+        { type: "attraction", lat: 18.7786, lng: 98.9994, name: {th: "ไนท์บาซาร์", en: "Night Bazaar", cn: "夜市"}, info: {th: "แหล่งช้อปปิ้งกลางคืน", en: "Shopping area", cn: "夜间购物区"} },
+        { type: "attraction", lat: 18.7836, lng: 98.9814, name: {th: "วัดพระสิงห์", en: "Wat Phra Singh", cn: "帕辛寺"}, info: {th: "วัดศิลปะล้านนา", en: "Lanna art temple", cn: "兰纳艺术寺庙"} },
+        { type: "attraction", lat: 18.7875, lng: 99.0034, name: {th: "กาดหลวง (ตลาดวโรรส)", en: "Warorot Market", cn: "瓦洛洛市场"}, info: {th: "ตลาดเก่าแก่ซื้อของฝาก", en: "Traditional market", cn: "传统市场"} },
+        // NATURE & GARDENS
+        { type: "attraction", lat: 18.7525, lng: 98.9200, name: {th: "อุทยานหลวงราชพฤกษ์", en: "Royal Park Rajapruek", cn: "皇家园林"}, info: {th: "สวนดอกไม้นานาชาติ", en: "Flower garden", cn: "花卉公园"} },
+        { type: "attraction", lat: 18.7441, lng: 98.9168, name: {th: "วัดพระธาตุดอยคำ", en: "Wat Phra That Doi Kham", cn: "来康寺"}, info: {th: "หลวงพ่อทันใจ", en: "Success Buddha", cn: "许愿佛"} },
+        { type: "attraction", lat: 18.8892, lng: 98.9602, name: {th: "ห้วยตึงเฒ่า", en: "Huay Tung Tao Lake", cn: "惠登套湖"}, info: {th: "หุ่นฟางคิงคอง", en: "King Kong straw huts", cn: "稻草金刚"} },
+        { type: "attraction", lat: 18.8095, lng: 98.9485, name: {th: "สวนสัตว์เชียงใหม่", en: "Chiang Mai Zoo", cn: "清迈动物园"}, info: {th: "ดูสัตว์และอควาเรียม", en: "Zoo & Aquarium", cn: "动物园和水族馆"} },
+        // NORTH & OUTSKIRT
+        { type: "attraction", lat: 18.8362, lng: 98.9626, name: {th: "วัดเจ็ดยอด", en: "Wat Jet Yod", cn: "界遥寺"}, info: {th: "พุทธคยาเมืองไทย", en: "Indian-style temple", cn: "印度式寺庙"} },
+        { type: "attraction", lat: 18.8524, lng: 99.0381, name: {th: "โอ้กะจู๋ (สันทราย)", en: "Ohkajhu Farm", cn: "有机餐厅"}, info: {th: "ร้านอาหารออร์แกนิก", en: "Organic restaurant", cn: "有机农场餐厅"} },
+        { type: "attraction", lat: 18.9126, lng: 98.9298, name: {th: "สวนพฤกษศาสตร์สมเด็จพระนางเจ้าสิริกิติ์", en: "Queen Sirikit Botanic Garden", cn: "诗丽吉王后植物园"}, info: {th: "ทางเดินลอยฟ้า", en: "Canopy walkway", cn: "林间漫步"} },
+        { type: "attraction", lat: 18.7613, lng: 98.8891, name: {th: "บ้านข้างวัด", en: "Baan Kang Wat", cn: "寺庙旁的家"}, info: {th: "หมู่บ้านงานคราฟต์", en: "Craft village", cn: "手工艺村"} },
+        { type: "attraction", lat: 18.6967, lng: 98.9294, name: {th: "เชียงใหม่ไนท์ซาฟารี", en: "Night Safari", cn: "夜间动物园"}, info: {th: "สวนสัตว์กลางคืน", en: "Night zoo", cn: "夜间动物园"} },
+        { type: "attraction", lat: 18.8317, lng: 98.9142, name: {th: "อ่างแก้ว มช.", en: "Ang Kaew Reservoir", cn: "清迈大学水库"}, info: {th: "จุดพักผ่อนวิวสวย", en: "CMU Reservoir", cn: "大学湖泊"} },
+        { type: "attraction", lat: 18.7753, lng: 98.9762, name: {th: "วัดศรีสุพรรณ (อุโบสถเงิน)", en: "Silver Temple", cn: "银庙"}, info: {th: "ศิลปะเครื่องเงิน", en: "Silver temple art", cn: "银制建筑"} },
+        { type: "attraction", lat: 18.7891, lng: 99.0112, name: {th: "สะพานเหล็ก (ข้ามแม่น้ำปิง)", en: "Iron Bridge", cn: "铁桥"}, info: {th: "ชมวิวแม่น้ำปิง", en: "Ping River view", cn: "平河桥"} }
+    ];
+
+    const map = L.map('map', { zoomControl: false }).setView([18.7883, 98.9853], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    const pIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/1022/1022330.png', iconSize: [35, 35], iconAnchor: [17, 35], popupAnchor: [0, -35] });
+    const aIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/149/149060.png', iconSize: [45, 45], iconAnchor: [22, 45], popupAnchor: [0, -45] });
+
+    let mkObjs = [];
+    function draw() {
+        mkObjs.forEach(m => map.removeLayer(m));
+        mkObjs = [];
+        locations.forEach(loc => {
+            const m = L.marker([loc.lat, loc.lng], {icon: loc.type === "attraction" ? aIcon : pIcon})
+                .addTo(map)
+                .bindPopup(`<div style="text-align:center;"><strong>${loc.name[currentLang]}</strong><br><small>${loc.info[currentLang]}</small><br><a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="nav-btn">${translations[currentLang].nav}</a></div>`);
+            mkObjs.push(m);
+        });
+    }
+
+    function changeLang(l) {
+        currentLang = l;
+        document.getElementById('ui-title').innerText = translations[l].title;
+        document.getElementById('search-input').placeholder = translations[l].search;
+        document.getElementById('ui-sos').innerText = translations[l].sos;
+        document.querySelectorAll('.lang-switch button').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-'+l).classList.add('active');
+        draw();
+    }
+
+    document.getElementById('search-input').addEventListener('input', function(e) {
+        const v = e.target.value.toLowerCase();
+        const fIdx = locations.findIndex(loc => loc.name[currentLang].toLowerCase().includes(v));
+        if (fIdx !== -1) {
+            map.flyTo([locations[fIdx].lat, locations[fIdx].lng], 15);
+            mkObjs[fIdx].openPopup();
+        }
+    });
+
+    draw();
+</script>
+</body>
+</html>
